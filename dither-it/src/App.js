@@ -78,8 +78,11 @@ function App() {
           <InputLabel>Dithering Algorithm</InputLabel>
           <Select value={algorithm} onChange={handleAlgorithmChange} label="Dithering Algorithm">
             <MenuItem value="floydSteinberg">Floyd-Steinberg</MenuItem>
-            <MenuItem value="ordered">Ordered Dithering</MenuItem>
-            <MenuItem value="random">Random Dithering</MenuItem>
+            <MenuItem value="stucki">Stucki</MenuItem>
+            <MenuItem value="burkes">Burkes</MenuItem>
+            <MenuItem value="sierra">Sierra</MenuItem>
+            <MenuItem value="atkinson">Atkinson</MenuItem>
+            <MenuItem value="latticeBoltzmann">Lattice Boltzmann</MenuItem>
           </Select>
         </FormControl>
 

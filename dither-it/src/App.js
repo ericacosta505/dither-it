@@ -348,6 +348,74 @@ function App() {
     return imageData;
   };
 
+  const atkinsonDither = (imageData, threshold) => {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const oldR = data[idx];
+        const oldG = data[idx + 1];
+        const oldB = data[idx + 2];
+        
+        // Apply threshold
+        const newR = oldR < threshold ? 0 : 255;
+        const newG = oldG < threshold ? 0 : 255;
+        const newB = oldB < threshold ? 0 : 255;
+        
+        // Calculate error
+        const errorR = Math.floor((oldR - newR) / 8);
+        const errorG = Math.floor((oldG - newG) / 8);
+        const errorB = Math.floor((oldB - newB) / 8);
+        
+        // Set new values
+        data[idx] = newR;
+        data[idx + 1] = newG;
+        data[idx + 2] = newB;
+
+        // Distribute errors using Atkinson pattern
+        // Current row
+        if (x + 1 < width) {
+          data[(y * width + x + 1) * 4] += errorR;
+          data[(y * width + x + 1) * 4 + 1] += errorG;
+          data[(y * width + x + 1) * 4 + 2] += errorB;
+        }
+        if (x + 2 < width) {
+          data[(y * width + x + 2) * 4] += errorR;
+          data[(y * width + x + 2) * 4 + 1] += errorG;
+          data[(y * width + x + 2) * 4 + 2] += errorB;
+        }
+
+        // Next row
+        if (y + 1 < height) {
+          if (x - 1 >= 0) {
+            data[((y + 1) * width + x - 1) * 4] += errorR;
+            data[((y + 1) * width + x - 1) * 4 + 1] += errorG;
+            data[((y + 1) * width + x - 1) * 4 + 2] += errorB;
+          }
+          data[((y + 1) * width + x) * 4] += errorR;
+          data[((y + 1) * width + x) * 4 + 1] += errorG;
+          data[((y + 1) * width + x) * 4 + 2] += errorB;
+          if (x + 1 < width) {
+            data[((y + 1) * width + x + 1) * 4] += errorR;
+            data[((y + 1) * width + x + 1) * 4 + 1] += errorG;
+            data[((y + 1) * width + x + 1) * 4 + 2] += errorB;
+          }
+        }
+
+        // Two rows down
+        if (y + 2 < height) {
+          data[((y + 2) * width + x) * 4] += errorR;
+          data[((y + 2) * width + x) * 4 + 1] += errorG;
+          data[((y + 2) * width + x) * 4 + 2] += errorB;
+        }
+      }
+    }
+    return imageData;
+  };
+
   const handleApplyEffect = async () => {
     if (!selectedImage) return;
 
@@ -374,6 +442,8 @@ function App() {
           processedData = burkesDither(imageData, threshold);
         } else if (algorithm === 'sierra') {
           processedData = sierraDither(imageData, threshold);
+        } else if (algorithm === 'atkinson') {
+          processedData = atkinsonDither(imageData, threshold);
         }
         
         ctx.putImageData(processedData, 0, 0);

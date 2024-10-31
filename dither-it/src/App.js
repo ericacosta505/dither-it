@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -17,29 +17,112 @@ function App() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [algorithm, setAlgorithm] = useState('floydSteinberg');
   const [threshold, setThreshold] = useState(128);
+  const [processedImageUrl, setProcessedImageUrl] = useState(null);
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
       setSelectedImage(file);
       setPreviewUrl(URL.createObjectURL(file));
+      setProcessedImageUrl(null);
     }
   };
 
   const handleAlgorithmChange = (event) => {
     setAlgorithm(event.target.value);
+    setProcessedImageUrl(null);
   };
 
   const handleThresholdChange = (event, newValue) => {
     setThreshold(newValue);
+    setProcessedImageUrl(null);
   };
 
-  const handleApplyEffect = () => {
-    console.log('Applying effect...');
+  const floydSteinbergDither = (imageData, threshold) => {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const oldR = data[idx];
+        const oldG = data[idx + 1];
+        const oldB = data[idx + 2];
+        
+        // Apply threshold to each channel separately
+        const newR = oldR < threshold ? 0 : 255;
+        const newG = oldG < threshold ? 0 : 255;
+        const newB = oldB < threshold ? 0 : 255;
+        
+        // Calculate error for each channel
+        const errorR = oldR - newR;
+        const errorG = oldG - newG;
+        const errorB = oldB - newB;
+        
+        // Set new pixel values
+        data[idx] = newR;
+        data[idx + 1] = newG;
+        data[idx + 2] = newB;
+        
+        // Distribute error to neighboring pixels for each channel
+        if (x + 1 < width) {
+          data[(y * width + x + 1) * 4] += errorR * 7/16;
+          data[(y * width + x + 1) * 4 + 1] += errorG * 7/16;
+          data[(y * width + x + 1) * 4 + 2] += errorB * 7/16;
+        }
+        if (y + 1 < height) {
+          if (x > 0) {
+            data[((y + 1) * width + x - 1) * 4] += errorR * 3/16;
+            data[((y + 1) * width + x - 1) * 4 + 1] += errorG * 3/16;
+            data[((y + 1) * width + x - 1) * 4 + 2] += errorB * 3/16;
+          }
+          data[((y + 1) * width + x) * 4] += errorR * 5/16;
+          data[((y + 1) * width + x) * 4 + 1] += errorG * 5/16;
+          data[((y + 1) * width + x) * 4 + 2] += errorB * 5/16;
+          if (x + 1 < width) {
+            data[((y + 1) * width + x + 1) * 4] += errorR * 1/16;
+            data[((y + 1) * width + x + 1) * 4 + 1] += errorG * 1/16;
+            data[((y + 1) * width + x + 1) * 4 + 2] += errorB * 1/16;
+          }
+        }
+      }
+    }
+    return imageData;
+  };
+
+  const handleApplyEffect = async () => {
+    if (!selectedImage || algorithm !== 'floydSteinberg') return;
+
+    const img = new Image();
+    img.src = previewUrl;
+    
+    await new Promise((resolve) => {
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const processedData = floydSteinbergDither(imageData, threshold);
+        
+        ctx.putImageData(processedData, 0, 0);
+        setProcessedImageUrl(canvas.toDataURL());
+        resolve();
+      };
+    });
   };
 
   const handleDownload = () => {
-    console.log('Downloading...');
+    if (processedImageUrl) {
+      const link = document.createElement('a');
+      link.download = 'dithered-image.png';
+      link.href = processedImageUrl;
+      link.click();
+    }
   };
 
   return (
@@ -65,12 +148,25 @@ function App() {
         </Box>
 
         {previewUrl && (
-          <Box sx={{ mb: 3, textAlign: 'center' }}>
-            <img
-              src={previewUrl}
-              alt="Preview"
-              style={{ maxWidth: '100%', maxHeight: '400px' }}
-            />
+          <Box sx={{ mb: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Box sx={{ textAlign: 'center', flex: 1 }}>
+              <Typography variant="subtitle1" gutterBottom>Original</Typography>
+              <img
+                src={previewUrl}
+                alt="Preview"
+                style={{ maxWidth: '100%', maxHeight: '400px' }}
+              />
+            </Box>
+            {processedImageUrl && (
+              <Box sx={{ textAlign: 'center', flex: 1 }}>
+                <Typography variant="subtitle1" gutterBottom>Processed</Typography>
+                <img
+                  src={processedImageUrl}
+                  alt="Processed"
+                  style={{ maxWidth: '100%', maxHeight: '400px' }}
+                />
+              </Box>
+            )}
           </Box>
         )}
 
@@ -109,7 +205,7 @@ function App() {
           <Button
             variant="outlined"
             onClick={handleDownload}
-            disabled={!selectedImage}
+            disabled={!processedImageUrl}
             fullWidth
           >
             Download
@@ -120,4 +216,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

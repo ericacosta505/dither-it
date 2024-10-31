@@ -91,8 +91,106 @@ function App() {
     return imageData;
   };
 
+  const stuckiDither = (imageData, threshold) => {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const oldR = data[idx];
+        const oldG = data[idx + 1];
+        const oldB = data[idx + 2];
+        
+        // Apply threshold
+        const newR = oldR < threshold ? 0 : 255;
+        const newG = oldG < threshold ? 0 : 255;
+        const newB = oldB < threshold ? 0 : 255;
+        
+        // Calculate error
+        const errorR = oldR - newR;
+        const errorG = oldG - newG;
+        const errorB = oldB - newB;
+        
+        // Set new values
+        data[idx] = newR;
+        data[idx + 1] = newG;
+        data[idx + 2] = newB;
+
+        // Distribute errors using Stucki pattern
+        // Current row
+        if (x + 1 < width) {
+          data[(y * width + x + 1) * 4] += errorR * 8/42;
+          data[(y * width + x + 1) * 4 + 1] += errorG * 8/42;
+          data[(y * width + x + 1) * 4 + 2] += errorB * 8/42;
+        }
+        if (x + 2 < width) {
+          data[(y * width + x + 2) * 4] += errorR * 4/42;
+          data[(y * width + x + 2) * 4 + 1] += errorG * 4/42;
+          data[(y * width + x + 2) * 4 + 2] += errorB * 4/42;
+        }
+
+        // Next row
+        if (y + 1 < height) {
+          if (x - 2 >= 0) {
+            data[((y + 1) * width + x - 2) * 4] += errorR * 2/42;
+            data[((y + 1) * width + x - 2) * 4 + 1] += errorG * 2/42;
+            data[((y + 1) * width + x - 2) * 4 + 2] += errorB * 2/42;
+          }
+          if (x - 1 >= 0) {
+            data[((y + 1) * width + x - 1) * 4] += errorR * 4/42;
+            data[((y + 1) * width + x - 1) * 4 + 1] += errorG * 4/42;
+            data[((y + 1) * width + x - 1) * 4 + 2] += errorB * 4/42;
+          }
+          data[((y + 1) * width + x) * 4] += errorR * 8/42;
+          data[((y + 1) * width + x) * 4 + 1] += errorG * 8/42;
+          data[((y + 1) * width + x) * 4 + 2] += errorB * 8/42;
+          if (x + 1 < width) {
+            data[((y + 1) * width + x + 1) * 4] += errorR * 4/42;
+            data[((y + 1) * width + x + 1) * 4 + 1] += errorG * 4/42;
+            data[((y + 1) * width + x + 1) * 4 + 2] += errorB * 4/42;
+          }
+          if (x + 2 < width) {
+            data[((y + 1) * width + x + 2) * 4] += errorR * 2/42;
+            data[((y + 1) * width + x + 2) * 4 + 1] += errorG * 2/42;
+            data[((y + 1) * width + x + 2) * 4 + 2] += errorB * 2/42;
+          }
+        }
+
+        // Two rows down
+        if (y + 2 < height) {
+          if (x - 2 >= 0) {
+            data[((y + 2) * width + x - 2) * 4] += errorR * 1/42;
+            data[((y + 2) * width + x - 2) * 4 + 1] += errorG * 1/42;
+            data[((y + 2) * width + x - 2) * 4 + 2] += errorB * 1/42;
+          }
+          if (x - 1 >= 0) {
+            data[((y + 2) * width + x - 1) * 4] += errorR * 2/42;
+            data[((y + 2) * width + x - 1) * 4 + 1] += errorG * 2/42;
+            data[((y + 2) * width + x - 1) * 4 + 2] += errorB * 2/42;
+          }
+          data[((y + 2) * width + x) * 4] += errorR * 4/42;
+          data[((y + 2) * width + x) * 4 + 1] += errorG * 4/42;
+          data[((y + 2) * width + x) * 4 + 2] += errorB * 4/42;
+          if (x + 1 < width) {
+            data[((y + 2) * width + x + 1) * 4] += errorR * 2/42;
+            data[((y + 2) * width + x + 1) * 4 + 1] += errorG * 2/42;
+            data[((y + 2) * width + x + 1) * 4 + 2] += errorB * 2/42;
+          }
+          if (x + 2 < width) {
+            data[((y + 2) * width + x + 2) * 4] += errorR * 1/42;
+            data[((y + 2) * width + x + 2) * 4 + 1] += errorG * 1/42;
+            data[((y + 2) * width + x + 2) * 4 + 2] += errorB * 1/42;
+          }
+        }
+      }
+    }
+    return imageData;
+  };
+
   const handleApplyEffect = async () => {
-    if (!selectedImage || algorithm !== 'floydSteinberg') return;
+    if (!selectedImage) return;
 
     const img = new Image();
     img.src = previewUrl;
@@ -107,7 +205,13 @@ function App() {
         ctx.drawImage(img, 0, 0);
         
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const processedData = floydSteinbergDither(imageData, threshold);
+        let processedData;
+        
+        if (algorithm === 'floydSteinberg') {
+          processedData = floydSteinbergDither(imageData, threshold);
+        } else if (algorithm === 'stucki') {
+          processedData = stuckiDither(imageData, threshold);
+        }
         
         ctx.putImageData(processedData, 0, 0);
         setProcessedImageUrl(canvas.toDataURL());

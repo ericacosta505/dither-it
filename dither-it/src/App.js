@@ -416,6 +416,80 @@ function App() {
     return imageData;
   };
 
+  const latticeBoltzmannDither = (imageData, threshold) => {
+    const width = imageData.width;
+    const height = imageData.height;
+    const data = imageData.data;
+    
+    // Create density and velocity arrays for each color channel
+    const densityR = new Float32Array(width * height);
+    const densityG = new Float32Array(width * height);
+    const densityB = new Float32Array(width * height);
+    const velocityX = new Float32Array(width * height);
+    const velocityY = new Float32Array(width * height);
+    
+    // Initialize density from image data
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        densityR[y * width + x] = data[idx] / 255;
+        densityG[y * width + x] = data[idx + 1] / 255;
+        densityB[y * width + x] = data[idx + 2] / 255;
+      }
+    }
+
+    // LBM parameters
+    const omega = 1.0; // Relaxation parameter
+    const iterations = 5;
+
+    // Perform LBM iterations
+    for (let iter = 0; iter < iterations; iter++) {
+      // Collision step
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          const ux = velocityX[idx];
+          const uy = velocityY[idx];
+          
+          // Update density and velocity using LBM equations for each channel
+          const feqR = densityR[idx] * (1 - 1.5 * (ux * ux + uy * uy));
+          const feqG = densityG[idx] * (1 - 1.5 * (ux * ux + uy * uy));
+          const feqB = densityB[idx] * (1 - 1.5 * (ux * ux + uy * uy));
+          
+          densityR[idx] += omega * (feqR - densityR[idx]);
+          densityG[idx] += omega * (feqG - densityG[idx]);
+          densityB[idx] += omega * (feqB - densityB[idx]);
+        }
+      }
+
+      // Streaming
+      for (let y = height - 1; y > 0; y--) {
+        for (let x = width - 1; x > 0; x--) {
+          const idx = y * width + x;
+          velocityX[idx] = velocityX[idx - 1];
+          velocityY[idx] = velocityY[idx - width];
+        }
+      }
+    }
+
+    // Apply dithering based on LBM results
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const dR = densityR[y * width + x] * 255;
+        const dG = densityG[y * width + x] * 255;
+        const dB = densityB[y * width + x] * 255;
+        
+        // Apply threshold with LBM influence for each channel
+        data[idx] = dR < threshold ? 0 : 255;
+        data[idx + 1] = dG < threshold ? 0 : 255;
+        data[idx + 2] = dB < threshold ? 0 : 255;
+      }
+    }
+    
+    return imageData;
+  };
+
   const handleApplyEffect = async () => {
     if (!selectedImage) return;
 
@@ -444,6 +518,8 @@ function App() {
           processedData = sierraDither(imageData, threshold);
         } else if (algorithm === 'atkinson') {
           processedData = atkinsonDither(imageData, threshold);
+        } else if (algorithm === 'latticeBoltzmann') {
+          processedData = latticeBoltzmannDither(imageData, threshold);
         }
         
         ctx.putImageData(processedData, 0, 0);
